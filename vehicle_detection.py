@@ -1,7 +1,41 @@
 import matplotlib.image as mpimg
+import matplotlib.pyplot as plt
 import numpy as np
 import cv2
 from skimage.feature import hog
+import glob
+from sklearn.preprocessing import StandardScaler
+
+def display_2_images(img1, img2, text_1='Origin Image', text_2='Destination Image'):
+    f, (ax1, ax2) = plt.subplots(1, 2, figsize=(24, 9))
+    f.tight_layout()
+    ax1.imshow(img1)
+    ax1.set_title(text_1, fontsize=50)
+    ax2.imshow(img2)
+    ax2.set_title(text_2, fontsize=50)
+    plt.subplots_adjust(left=0., right=1, top=0.9, bottom=0.)
+    plt.interactive(False)
+
+
+def display_color_gray(color, gray):
+    f, (ax1, ax2) = plt.subplots(1, 2, figsize=(24, 9))
+    f.tight_layout()
+    ax1.imshow(color)
+    ax1.set_title('Original Image', fontsize=50)
+    ax2.imshow(gray, cmap='gray')
+    ax2.set_title('Dest Image', fontsize=50)
+    plt.subplots_adjust(left=0., right=1, top=0.9, bottom=0.)
+    plt.interactive(False)
+
+# always read image as uint8 so don't have to worry png(0-1) or jpeg
+def read_image(image_path):
+    img = mpimg.imread(image_path)
+    if img.dtype != 'uint8':
+        img = (img * 255).astype(np.uint8)
+    return img
+
+def normalize_data():
+    None
 
 # Define a function to return HOG features and visualization
 def get_hog_features(img, orient, pix_per_cell, cell_per_block, vis=False, feature_vec=True):
@@ -55,8 +89,8 @@ def extract_features(imgs, color_space='RGB', spatial_size=(32, 32),
     # Iterate through the list of images
     for file in imgs:
         file_features = []
-        # Read in each one by one
-        image = mpimg.imread(file)
+        # Read in each one by one convert 0-1 to 0-255 as well
+        image = read_image(file)
         # apply color conversion if other than 'RGB'
         if color_space != 'RGB':
             if color_space == 'HSV':
