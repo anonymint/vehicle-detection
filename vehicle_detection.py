@@ -233,16 +233,16 @@ if __name__ == '__main__':
     hog_channel = 1
     car_features = extract_features(car_images[:1000], color_space='HSV',
                                     spatial_size=(spatial, spatial), hist_bins=histbin,
-                                    orient = orient, pix_per_cell=pix_per_cell, cell_per_block = cell_per_block,
-                                    hog_channel= hog_channel,
+                                    orient=orient, pix_per_cell=pix_per_cell, cell_per_block=cell_per_block,
+                                    hog_channel=hog_channel,
                                     spatial_feat=True, hist_feat=True, hog_feat=True)
     noncar_features = extract_features(noncar_images[:1000], color_space='HSV',
                                        spatial_size=(spatial, spatial), hist_bins=histbin,
-                                       orient = orient, pix_per_cell=pix_per_cell, cell_per_block = cell_per_block,
-                                       hog_channel= hog_channel,
+                                       orient=orient, pix_per_cell=pix_per_cell, cell_per_block=cell_per_block,
+                                       hog_channel=hog_channel,
                                        spatial_feat=True, hist_feat=True, hog_feat=True)
 
     train_classifier(car_features, noncar_features, visualize=True)
 
     end = timer()
-    print('Duration', round(end-start, 2), 'secs')
+    print('Duration', round(end - start, 2), 'secs')
