@@ -153,10 +153,14 @@ def train_classifier(car_features, noncar_features, visualize=False):
     svc.fit(X_train, y_train)
 
     if visualize:
-        print('Test Accuracy of SVC = ', round(svc.score(X_test, y_test), 4))
+        prediction = svc.score(X_test, y_test)
+        print('Test Accuracy of SVC = ', prediction)
         n_predict = 10
         print('My SVC predicts: ', svc.predict(X_test[0:n_predict]))
         print('For these', n_predict, 'labels: ', y_test[0:n_predict])
+        return svc, prediction
+    else:
+        return svc
 
 # Define a function that takes an image,
 # start and stop positions in both x and y,
@@ -218,6 +222,103 @@ def draw_boxes(img, bboxes, color=(0, 0, 255), thick=6):
 
 # Main method for running
 
+def experiment_color(colors, spatials, histbins):
+    combine = []
+    for c in colors:
+        for s in spatials:
+            for h in histbins:
+                d = {}
+                d['color_space'] = c
+                d['spatial'] = s
+                d['histbin'] = h
+                combine.append(d)
+
+    print(len(combine))
+
+    # color_space = 'LUV' # Can be RGB, HSV, LUV, HLS, YUV, YCrCb
+    # spatial = 16
+    # histbin = 32
+    # orient = 9
+    # pix_per_cell = 4
+    # cell_per_block = 2
+    # hog_channel = 1
+
+    best = 0
+    best_combination = []
+    for c in combine:
+        car_features = extract_features(car_images[:999], color_space=c['color_space'],
+                                        spatial_size=(c['spatial'], c['spatial']), hist_bins=c['histbin'],
+                                        # orient=orient, pix_per_cell=pix_per_cell, cell_per_block=cell_per_block,
+                                        # hog_channel=hog_channel,
+                                        spatial_feat=True, hist_feat=True, hog_feat=False)
+        noncar_features = extract_features(noncar_images[:999], color_space=c['color_space'],
+                                           spatial_size=(c['spatial'], c['spatial']), hist_bins=c['histbin'],
+                                           # orient=orient, pix_per_cell=pix_per_cell, cell_per_block=cell_per_block,
+                                           # hog_channel=hog_channel,
+                                           spatial_feat=True, hist_feat=True, hog_feat=False)
+
+        print('Predict for', c)
+        classifier, pred = train_classifier(car_features, noncar_features, visualize=True)
+        if pred > best:
+            best_combination = []
+            best = pred
+            best_combination.append(c)
+        elif pred == best:
+            best_combination.append(c)
+
+    print('best combination is',best, best_combination)
+
+def experiment_hog(colors, orients, pix_per_cells, cell_per_blocks, hog_channels):
+    combine = []
+    for c in colors:
+        for o in orients:
+            for p in pix_per_cells:
+                for c in cell_per_blocks:
+                    for h in hog_channels:
+                        d = {}
+                        d['color_space'] = c
+                        d['orient'] = o
+                        d['pix_per_cells'] = p
+                        d['cell_per_blocks'] = c
+                        d['hog_channel'] = h
+                        combine.append(d)
+
+    print(len(combine))
+
+    # color_space = 'LUV' # Can be RGB, HSV, LUV, HLS, YUV, YCrCb
+    # orient = 9
+    # pix_per_cell = 4
+    # cell_per_block = 2
+    # hog_channel = 1
+
+    best = 0
+    best_combination = []
+    for c in combine:
+        car_features = extract_features(car_images[:999], color_space=c['color_space'],
+                                        # spatial_size=(c['spatial'], c['spatial']), hist_bins=c['histbin'],
+                                        orient=c['orient'], pix_per_cell=c['pix_per_cell'], cell_per_block=c['cell_per_block'],
+                                        hog_channel=c['hog_channel'],
+                                        spatial_feat=False, hist_feat=False, hog_feat=True)
+        noncar_features = extract_features(noncar_images[:999], color_space=c['color_space'],
+                                           # spatial_size=(c['spatial'], c['spatial']), hist_bins=c['histbin'],
+                                           orient=orient, pix_per_cell=pix_per_cell, cell_per_block=cell_per_block,
+                                           hog_channel=hog_channel,
+                                           spatial_feat=False, hist_feat=False, hog_feat=True)
+
+        print('Predict for', c)
+        classifier, pred = train_classifier(car_features, noncar_features, visualize=True)
+        if pred > best:
+            best_combination = []
+            best = pred
+            best_combination.append(c)
+        elif pred == best:
+            best_combination.append(c)
+
+    print('best combination is',best, best_combination)
+
+    # Predict for {'histbin': 32, 'color_space': 'HLS', 'spatial': 16}
+    # Test Accuracy of SVC =  0.9975
+
 if __name__ == '__main__':
     from timeit import default_timer as timer
 
@@ -225,24 +326,8 @@ if __name__ == '__main__':
     car_images = glob.glob('./data/car/*/*.png')
     noncar_images = glob.glob('./data/noncar/*/*.png')
 
-    spatial = 16
-    histbin = 32
-    orient = 9
-    pix_per_cell = 4
-    cell_per_block = 2
-    hog_channel = 1
-    car_features = extract_features(car_images[:1000], color_space='HSV',
-                                    spatial_size=(spatial, spatial), hist_bins=histbin,
-                                    orient=orient, pix_per_cell=pix_per_cell, cell_per_block=cell_per_block,
-                                    hog_channel=hog_channel,
-                                    spatial_feat=True, hist_feat=True, hog_feat=True)
-    noncar_features = extract_features(noncar_images[:1000], color_space='HSV',
-                                       spatial_size=(spatial, spatial), hist_bins=histbin,
-                                       orient=orient, pix_per_cell=pix_per_cell, cell_per_block=cell_per_block,
-                                       hog_channel=hog_channel,
-                                       spatial_feat=True, hist_feat=True, hog_feat=True)
-
-    train_classifier(car_features, noncar_features, visualize=True)
+    experiment_color(['RGB', 'HSV', 'LUV', 'HLS', 'YUV', 'YCrCb'], [8,16,32], [8,16,32])
+    # experiment_hog(['RGB', 'HSV', 'LUV', 'HLS', 'YUV', 'YCrCb'], [9,12], [4], [2], [0,1,2,'ALL'])
 
     end = timer()
     print('Duration', round(end - start, 2), 'secs')
