@@ -5,6 +5,8 @@ import cv2
 from skimage.feature import hog
 import glob
 from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+from sklearn.svm import LinearSVC
 
 def display_2_images(img1, img2, text_1='Origin Image', text_2='Destination Image'):
     f, (ax1, ax2) = plt.subplots(1, 2, figsize=(24, 9))
@@ -33,9 +35,6 @@ def read_image(image_path):
     if img.dtype != 'uint8':
         img = (img * 255).astype(np.uint8)
     return img
-
-def normalize_data():
-    None
 
 # Define a function to return HOG features and visualization
 def get_hog_features(img, orient, pix_per_cell, cell_per_block, vis=False, feature_vec=True):
@@ -132,6 +131,33 @@ def extract_features(imgs, color_space='RGB', spatial_size=(32, 32),
     return features
 
 
+def normalize_data(car_features, noncar_features):
+    X = np.vstack((car_features, noncar_features)).astype(np.float64)
+    X_scaller = StandardScaler().fit(X)
+    return X_scaller.transform(X)
+
+
+def train_classifier(car_features, noncar_features, visualize=False):
+    # define labels
+    y = np.hstack((np.ones(len(car_features)), np.zeros(len(noncar_features))))
+
+    # Normalize data
+    scaled_X = normalize_data(car_features, noncar_features)
+
+    # good idea to split data into training and validation and random
+    rand_state = np.random.randint(0, 100)
+    X_train, X_test, y_train, y_test = train_test_split(scaled_X, y, test_size=0.2, random_state=rand_state)
+
+    # Time to train it
+    svc = LinearSVC()
+    svc.fit(X_train, y_train)
+
+    if visualize:
+        print('Test Accuracy of SVC = ', round(svc.score(X_test, y_test), 4))
+        n_predict = 10
+        print('My SVC predicts: ', svc.predict(X_test[0:n_predict]))
+        print('For these', n_predict, 'labels: ', y_test[0:n_predict])
+
 # Define a function that takes an image,
 # start and stop positions in both x and y,
 # window size (x and y dimensions),
@@ -188,3 +214,35 @@ def draw_boxes(img, bboxes, color=(0, 0, 255), thick=6):
         cv2.rectangle(imcopy, bbox[0], bbox[1], color, thick)
     # Return the image copy with boxes drawn
     return imcopy
+
+
+# Main method for running
+
+if __name__ == '__main__':
+    from timeit import default_timer as timer
+
+    start = timer()
+    car_images = glob.glob('./data/car/*/*.png')
+    noncar_images = glob.glob('./data/noncar/*/*.png')
+
+    spatial = 16
+    histbin = 32
+    orient = 9
+    pix_per_cell = 4
+    cell_per_block = 2
+    hog_channel = 1
+    car_features = extract_features(car_images[:1000], color_space='HSV',
+                                    spatial_size=(spatial, spatial), hist_bins=histbin,
+                                    orient = orient, pix_per_cell=pix_per_cell, cell_per_block = cell_per_block,
+                                    hog_channel= hog_channel,
+                                    spatial_feat=True, hist_feat=True, hog_feat=True)
+    noncar_features = extract_features(noncar_images[:1000], color_space='HSV',
+                                       spatial_size=(spatial, spatial), hist_bins=histbin,
+                                       orient = orient, pix_per_cell=pix_per_cell, cell_per_block = cell_per_block,
+                                       hog_channel= hog_channel,
+                                       spatial_feat=True, hist_feat=True, hog_feat=True)
+
+    train_classifier(car_features, noncar_features, visualize=True)
+
+    end = timer()
+    print('Duration', round(end-start, 2), 'secs')
