@@ -270,16 +270,16 @@ def experiment_color(colors, spatials, histbins):
 
 def experiment_hog(colors, orients, pix_per_cells, cell_per_blocks, hog_channels):
     combine = []
-    for c in colors:
+    for color in colors:
         for o in orients:
             for p in pix_per_cells:
                 for c in cell_per_blocks:
                     for h in hog_channels:
                         d = {}
-                        d['color_space'] = c
+                        d['color_space'] = color
                         d['orient'] = o
-                        d['pix_per_cells'] = p
-                        d['cell_per_blocks'] = c
+                        d['pix_per_cell'] = p
+                        d['cell_per_block'] = c
                         d['hog_channel'] = h
                         combine.append(d)
 
@@ -301,8 +301,8 @@ def experiment_hog(colors, orients, pix_per_cells, cell_per_blocks, hog_channels
                                         spatial_feat=False, hist_feat=False, hog_feat=True)
         noncar_features = extract_features(noncar_images[:999], color_space=c['color_space'],
                                            # spatial_size=(c['spatial'], c['spatial']), hist_bins=c['histbin'],
-                                           orient=orient, pix_per_cell=pix_per_cell, cell_per_block=cell_per_block,
-                                           hog_channel=hog_channel,
+                                           orient=c['orient'], pix_per_cell=c['pix_per_cell'], cell_per_block=c['cell_per_block'],
+                                           hog_channel=c['hog_channel'],
                                            spatial_feat=False, hist_feat=False, hog_feat=True)
 
         print('Predict for', c)
@@ -326,8 +326,10 @@ if __name__ == '__main__':
     car_images = glob.glob('./data/car/*/*.png')
     noncar_images = glob.glob('./data/noncar/*/*.png')
 
-    experiment_color(['RGB', 'HSV', 'LUV', 'HLS', 'YUV', 'YCrCb'], [8,16,32], [8,16,32])
-    # experiment_hog(['RGB', 'HSV', 'LUV', 'HLS', 'YUV', 'YCrCb'], [9,12], [4], [2], [0,1,2,'ALL'])
+    # experiment_color(['RGB', 'HSV', 'LUV', 'HLS', 'YUV', 'YCrCb'], [8,16,32], [8,16,32])
+    # best combination is 1.0 [{'color_space': 'RGB', 'histbin': 32, 'spatial': 8}, {'color_space': 'HSV', 'histbin': 16, 'spatial': 8}, {'color_space': 'HSV', 'histbin': 16, 'spatial': 16}, {'color_space': 'LUV', 'histbin': 32, 'spatial': 8}, {'color_space': 'HLS', 'histbin': 32, 'spatial': 8}, {'color_space': 'HLS', 'histbin': 32, 'spatial': 16}, {'color_space': 'YUV', 'histbin': 16, 'spatial': 8}, {'color_space': 'YUV', 'histbin': 32, 'spatial': 16}, {'color_space': 'YCrCb', 'histbin': 16, 'spatial': 8}, {'color_space': 'YCrCb', 'histbin': 32, 'spatial': 8}, {'color_space': 'YCrCb', 'histbin': 32, 'spatial': 16}]
+    experiment_hog(['RGB', 'HSV', 'LUV', 'HLS', 'YUV', 'YCrCb'], [9,12], [4], [2], [0,1,2,'ALL'])
+    # best combination is 1.0 [{'orient': 12, 'pix_per_cell': 4, 'color_space': 'RGB', 'hog_channel': 'ALL', 'cell_per_block': 2}, {'orient': 9, 'pix_per_cell': 4, 'color_space': 'HSV', 'hog_channel': 'ALL', 'cell_per_block': 2}, {'orient': 12, 'pix_per_cell': 4, 'color_space': 'HSV', 'hog_channel': 'ALL', 'cell_per_block': 2}, {'orient': 12, 'pix_per_cell': 4, 'color_space': 'LUV', 'hog_channel': 'ALL', 'cell_per_block': 2}, {'orient': 9, 'pix_per_cell': 4, 'color_space': 'HLS', 'hog_channel': 'ALL', 'cell_per_block': 2}, {'orient': 12, 'pix_per_cell': 4, 'color_space': 'HLS', 'hog_channel': 'ALL', 'cell_per_block': 2}, {'orient': 12, 'pix_per_cell': 4, 'color_space': 'YUV', 'hog_channel': 'ALL', 'cell_per_block': 2}, {'orient': 12, 'pix_per_cell': 4, 'color_space': 'YCrCb', 'hog_channel': 'ALL', 'cell_per_block': 2}]
 
     end = timer()
     print('Duration', round(end - start, 2), 'secs')
