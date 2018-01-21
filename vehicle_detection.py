@@ -78,6 +78,26 @@ def color_hist(img, nbins=32, bins_range=(0, 256)):
     return hist_features
 
 
+def convert_color(image, color_space='RGB'):
+    # Assume input is RGB
+    feature_image = np.copy(image)
+
+    # apply color conversion if other than 'RGB'
+    if color_space != 'RGB':
+        if color_space == 'HSV':
+            feature_image = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
+        elif color_space == 'LUV':
+            feature_image = cv2.cvtColor(image, cv2.COLOR_RGB2LUV)
+        elif color_space == 'HLS':
+            feature_image = cv2.cvtColor(image, cv2.COLOR_RGB2HLS)
+        elif color_space == 'YUV':
+            feature_image = cv2.cvtColor(image, cv2.COLOR_RGB2YUV)
+        elif color_space == 'YCrCb':
+            feature_image = cv2.cvtColor(image, cv2.COLOR_RGB2YCrCb)
+
+    return feature_image
+
+
 # Define a function to extract features from a list of images
 # Have this function call bin_spatial() and color_hist()
 def extract_features(imgs, color_space='RGB', spatial_size=(32, 32),
@@ -92,19 +112,7 @@ def extract_features(imgs, color_space='RGB', spatial_size=(32, 32),
         # Read in each one by one convert 0-1 to 0-255 as well
         image = read_image(file)
         # apply color conversion if other than 'RGB'
-        if color_space != 'RGB':
-            if color_space == 'HSV':
-                feature_image = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
-            elif color_space == 'LUV':
-                feature_image = cv2.cvtColor(image, cv2.COLOR_RGB2LUV)
-            elif color_space == 'HLS':
-                feature_image = cv2.cvtColor(image, cv2.COLOR_RGB2HLS)
-            elif color_space == 'YUV':
-                feature_image = cv2.cvtColor(image, cv2.COLOR_RGB2YUV)
-            elif color_space == 'YCrCb':
-                feature_image = cv2.cvtColor(image, cv2.COLOR_RGB2YCrCb)
-        else:
-            feature_image = np.copy(image)
+        feature_image = convert_color(image, color_space)
 
         if spatial_feat:
             spatial_features = bin_spatial(feature_image, size=spatial_size)
@@ -230,18 +238,7 @@ def single_img_features(img, color_space='RGB', spatial_size=(32, 32),
     #1) Define an empty list to receive features
     img_features = []
     #2) Apply color conversion if other than 'RGB'
-    if color_space != 'RGB':
-        if color_space == 'HSV':
-            feature_image = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
-        elif color_space == 'LUV':
-            feature_image = cv2.cvtColor(img, cv2.COLOR_RGB2LUV)
-        elif color_space == 'HLS':
-            feature_image = cv2.cvtColor(img, cv2.COLOR_RGB2HLS)
-        elif color_space == 'YUV':
-            feature_image = cv2.cvtColor(img, cv2.COLOR_RGB2YUV)
-        elif color_space == 'YCrCb':
-            feature_image = cv2.cvtColor(img, cv2.COLOR_RGB2YCrCb)
-    else: feature_image = np.copy(img)
+    feature_image = convert_color(image, color_space)
     #3) Compute spatial features if flag is set
     if spatial_feat == True:
         spatial_features = bin_spatial(feature_image, size=spatial_size)
@@ -298,6 +295,75 @@ def search_windows(img, windows, clf, scaler, color_space='RGB',
             on_windows.append(window)
     # 8) Return windows for positive detections
     return on_windows
+
+# Define a single function that can extract features using hog sub-sampling and make predictions
+def find_cars(img, ystart, ystop, scale, svc, X_scaler, color_space, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins):
+    draw_img = np.copy(img)
+    # img = img.astype(np.float32) / 255
+
+    img_tosearch = img[ystart:ystop, :, :]
+    # assume img_tosearch is in RGB format
+    ctrans_tosearch = convert_color(img_tosearch, color_space=color_space)
+
+    if scale != 1:
+        imshape = ctrans_tosearch.shape
+        ctrans_tosearch = cv2.resize(ctrans_tosearch, (np.int(imshape[1] / scale), np.int(imshape[0] / scale)))
+
+    ch1 = ctrans_tosearch[:, :, 0]
+    ch2 = ctrans_tosearch[:, :, 1]
+    ch3 = ctrans_tosearch[:, :, 2]
+
+    # Define blocks and steps as above
+    nxblocks = (ch1.shape[1] // pix_per_cell) - cell_per_block + 1
+    nyblocks = (ch1.shape[0] // pix_per_cell) - cell_per_block + 1
+    nfeat_per_block = orient * cell_per_block ** 2
+
+    # 64 was the orginal sampling rate, with 8 cells and 8 pix per cell
+    window = 64
+    nblocks_per_window = (window // pix_per_cell) - cell_per_block + 1
+    cells_per_step = 2  # Instead of overlap, define how many cells to step
+    nxsteps = (nxblocks - nblocks_per_window) // cells_per_step + 1
+    nysteps = (nyblocks - nblocks_per_window) // cells_per_step + 1
+
+    # Compute individual channel HOG features for the entire image
+    hog1 = get_hog_features(ch1, orient, pix_per_cell, cell_per_block, feature_vec=False)
+    hog2 = get_hog_features(ch2, orient, pix_per_cell, cell_per_block, feature_vec=False)
+    hog3 = get_hog_features(ch3, orient, pix_per_cell, cell_per_block, feature_vec=False)
+
+    for xb in range(nxsteps):
+        for yb in range(nysteps):
+            ypos = yb * cells_per_step
+            xpos = xb * cells_per_step
+            # Extract HOG for this patch
+            hog_feat1 = hog1[ypos:ypos + nblocks_per_window, xpos:xpos + nblocks_per_window].ravel()
+            hog_feat2 = hog2[ypos:ypos + nblocks_per_window, xpos:xpos + nblocks_per_window].ravel()
+            hog_feat3 = hog3[ypos:ypos + nblocks_per_window, xpos:xpos + nblocks_per_window].ravel()
+            hog_features = np.hstack((hog_feat1, hog_feat2, hog_feat3))
+
+            xleft = xpos * pix_per_cell
+            ytop = ypos * pix_per_cell
+
+            # Extract the image patch
+            subimg = cv2.resize(ctrans_tosearch[ytop:ytop + window, xleft:xleft + window], (64, 64))
+
+            # Get color features
+            spatial_features = bin_spatial(subimg, size=spatial_size)
+            hist_features = color_hist(subimg, nbins=hist_bins)
+
+            # Scale features and make a prediction
+            test_features = X_scaler.transform(
+                np.hstack((spatial_features, hist_features, hog_features)).reshape(1, -1))
+            # test_features = X_scaler.transform(np.hstack((shape_feat, hist_feat)).reshape(1, -1))
+            test_prediction = svc.predict(test_features)
+
+            if test_prediction == 1:
+                xbox_left = np.int(xleft * scale)
+                ytop_draw = np.int(ytop * scale)
+                win_draw = np.int(window * scale)
+                cv2.rectangle(draw_img, (xbox_left, ytop_draw + ystart),
+                              (xbox_left + win_draw, ytop_draw + win_draw + ystart), (0, 0, 255), 6)
+
+    return draw_img
 
 def experiment_color(colors, spatials, histbins):
     combine = []
@@ -402,16 +468,16 @@ def train_classifier_pipeline(save_file='training.p'):
     noncar_images = glob.glob('./data/noncar/*/*.png')
 
     # train classifier
-    color_space = 'HSV'
+    color_space = 'YCrCb'
     hist_bins = 16
     spatial = (16,16)
     orient = 9
     pix_per_cell = 4
     cell_per_block = 2
     hog_channel = 'ALL'
-    car_features = extract_features(car_images[:1000], color_space=color_space, spatial_size=spatial, hist_bins=hist_bins,
+    car_features = extract_features(car_images, color_space=color_space, spatial_size=spatial, hist_bins=hist_bins,
                                     orient=orient, pix_per_cell=pix_per_cell, cell_per_block=cell_per_block, hog_channel=hog_channel)
-    noncar_features = extract_features(noncar_images[:1000], color_space=color_space, spatial_size=spatial, hist_bins=hist_bins,
+    noncar_features = extract_features(noncar_images, color_space=color_space, spatial_size=spatial, hist_bins=hist_bins,
                                        orient=orient, pix_per_cell=pix_per_cell, cell_per_block=cell_per_block, hog_channel=hog_channel)
 
     svc, X_scaler, pred = train_classifier(car_features, noncar_features, visualize=True)
@@ -446,12 +512,22 @@ if __name__ == '__main__':
     from timeit import default_timer as timer
 
     # Good idea to train once and save for later use
-    train_classifier_pipeline('training_1000_samples.p')
+    train_classifier_pipeline('training_ALL_YCrCb.p')
 
-    saved_pickle = pickle.load(open('training.p', 'rb'))
-    print(saved_pickle['svc'], saved_pickle['X_scaler'])
+    # Load saved training
+    saved_pickle = pickle.load(open('training_ALL_YCrCb.p', 'rb'))
+    svc = saved_pickle['svc']
+    X_scaler = saved_pickle['X_scaler']
+    color_space = saved_pickle['color_space']
+    spatial = saved_pickle['spatial']
+    hist_bins = saved_pickle['hist_bins']
+    orient = saved_pickle['orient']
+    pix_per_cell= saved_pickle['pix_per_cell']
+    cell_per_block = saved_pickle['cell_per_block']
+    hog_channel = saved_pickle['hog_channel']
 
 
+    # Method 1 : search everything
     # images = glob.glob('./test_images/*.jpg')
     # for image in images:
     #     test_image = read_image(image)
@@ -459,9 +535,6 @@ if __name__ == '__main__':
     #     window_list_m = slide_window(test_image,y_start_stop=[400,600], xy_window=(128,128), xy_overlap=(0.8,0.8))
     #     window_list_l = slide_window(test_image,y_start_stop=[450,None], xy_window=(256,256), xy_overlap=(0.8,0.8))
     #     windows = window_list_s + window_list_m + window_list_l
-    #     # window_image = draw_boxes(test_image, window_list_s, color=(255,0,0))
-    #     # window_image = draw_boxes(window_image, window_list_m, color=(0,255,0))
-    #     # window_image = draw_boxes(window_image, window_list_l, color=(0,0,255))
     #
     #     hot_windows = search_windows(test_image, windows, svc, X_scaler, color_space=color_space,
     #                                  spatial_size=spatial, hist_bins=hist_bins,
@@ -471,3 +544,15 @@ if __name__ == '__main__':
     #     window_image = draw_boxes(test_image, hot_windows, color=(0,0,255))
     #     plt.imshow(window_image)
     #     plt.show()
+
+    # Method 2 : search with sub sampling
+    images = glob.glob('./test_images/*.jpg')
+    ystart = 400
+    ystop = 656
+    scale = 1.5
+    for image in images:
+        test_image = read_image(image)
+        out_img = find_cars(test_image, ystart, ystop, scale, svc, X_scaler, color_space,  orient, pix_per_cell, cell_per_block, spatial, hist_bins)
+        plt.imshow(out_img)
+        plt.show()
+
