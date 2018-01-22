@@ -553,7 +553,26 @@ def train_classifier_pipeline(save_file='training.p'):
 
 def detection_pipeline(image_detection, params, svc, X_scaler, color_space,
     orient, pix_per_cell, cell_per_block, spatial, hist_bins, visualize=False):
-    # Get list of boxes being identified
+
+    # Method 1 : search everything this is very slow and inefficient
+    # images = glob.glob('./test_images/*.jpg')
+    # for image in images:
+    #     test_image = read_image(image)
+    #     window_list_s = slide_window(test_image,y_start_stop=[400,450], xy_window=(32,32), xy_overlap=(0.8,0.8))
+    #     window_list_m = slide_window(test_image,y_start_stop=[400,600], xy_window=(128,128), xy_overlap=(0.8,0.8))
+    #     window_list_l = slide_window(test_image,y_start_stop=[450,None], xy_window=(256,256), xy_overlap=(0.8,0.8))
+    #     windows = window_list_s + window_list_m + window_list_l
+    #
+    #     hot_windows = search_windows(test_image, windows, svc, X_scaler, color_space=color_space,
+    #                                  spatial_size=spatial, hist_bins=hist_bins,
+    #                                  orient=orient, pix_per_cell=pix_per_cell, cell_per_block=cell_per_block,
+    #                                  hog_channel=hog_channel)
+    #
+    #     window_image = draw_boxes(test_image, hot_windows, color=(0,0,255))
+    #     plt.imshow(window_image)
+    #     plt.show()
+
+    # Method 2: Get list of boxes being identified by HOG and sub-sampling
     bbox_list = []
     for param in params:
         ystart = param[0]
@@ -627,26 +646,7 @@ if __name__ == '__main__':
     cell_per_block = saved_pickle['cell_per_block']
     hog_channel = saved_pickle['hog_channel']
 
-
-    # Method 1 : search everything
-    # images = glob.glob('./test_images/*.jpg')
-    # for image in images:
-    #     test_image = read_image(image)
-    #     window_list_s = slide_window(test_image,y_start_stop=[400,450], xy_window=(32,32), xy_overlap=(0.8,0.8))
-    #     window_list_m = slide_window(test_image,y_start_stop=[400,600], xy_window=(128,128), xy_overlap=(0.8,0.8))
-    #     window_list_l = slide_window(test_image,y_start_stop=[450,None], xy_window=(256,256), xy_overlap=(0.8,0.8))
-    #     windows = window_list_s + window_list_m + window_list_l
-    #
-    #     hot_windows = search_windows(test_image, windows, svc, X_scaler, color_space=color_space,
-    #                                  spatial_size=spatial, hist_bins=hist_bins,
-    #                                  orient=orient, pix_per_cell=pix_per_cell, cell_per_block=cell_per_block,
-    #                                  hog_channel=hog_channel)
-    #
-    #     window_image = draw_boxes(test_image, hot_windows, color=(0,0,255))
-    #     plt.imshow(window_image)
-    #     plt.show()
-
-    # Method 2 : search with sub sampling
+    # Test images
     images = glob.glob('./test_images/*.jpg')
     for image in images:
         final_img = process_pipeline(image)
