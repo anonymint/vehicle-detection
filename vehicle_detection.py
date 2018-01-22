@@ -238,7 +238,7 @@ def single_img_features(img, color_space='RGB', spatial_size=(32, 32),
     #1) Define an empty list to receive features
     img_features = []
     #2) Apply color conversion if other than 'RGB'
-    feature_image = convert_color(image, color_space)
+    feature_image = convert_color(img, color_space)
     #3) Compute spatial features if flag is set
     if spatial_feat == True:
         spatial_features = bin_spatial(feature_image, size=spatial_size)
@@ -512,7 +512,7 @@ if __name__ == '__main__':
     from timeit import default_timer as timer
 
     # Good idea to train once and save for later use
-    train_classifier_pipeline('training_ALL_YCrCb.p')
+    # train_classifier_pipeline('training.p')
 
     # Load saved training
     saved_pickle = pickle.load(open('training_ALL_YCrCb.p', 'rb'))
@@ -528,31 +528,31 @@ if __name__ == '__main__':
 
 
     # Method 1 : search everything
-    # images = glob.glob('./test_images/*.jpg')
-    # for image in images:
-    #     test_image = read_image(image)
-    #     window_list_s = slide_window(test_image,y_start_stop=[400,450], xy_window=(32,32), xy_overlap=(0.8,0.8))
-    #     window_list_m = slide_window(test_image,y_start_stop=[400,600], xy_window=(128,128), xy_overlap=(0.8,0.8))
-    #     window_list_l = slide_window(test_image,y_start_stop=[450,None], xy_window=(256,256), xy_overlap=(0.8,0.8))
-    #     windows = window_list_s + window_list_m + window_list_l
-    #
-    #     hot_windows = search_windows(test_image, windows, svc, X_scaler, color_space=color_space,
-    #                                  spatial_size=spatial, hist_bins=hist_bins,
-    #                                  orient=orient, pix_per_cell=pix_per_cell, cell_per_block=cell_per_block,
-    #                                  hog_channel=hog_channel)
-    #
-    #     window_image = draw_boxes(test_image, hot_windows, color=(0,0,255))
-    #     plt.imshow(window_image)
-    #     plt.show()
-
-    # Method 2 : search with sub sampling
     images = glob.glob('./test_images/*.jpg')
-    ystart = 400
-    ystop = 656
-    scale = 1.5
     for image in images:
         test_image = read_image(image)
-        out_img = find_cars(test_image, ystart, ystop, scale, svc, X_scaler, color_space,  orient, pix_per_cell, cell_per_block, spatial, hist_bins)
-        plt.imshow(out_img)
+        window_list_s = slide_window(test_image,y_start_stop=[400,450], xy_window=(32,32), xy_overlap=(0.8,0.8))
+        window_list_m = slide_window(test_image,y_start_stop=[400,600], xy_window=(128,128), xy_overlap=(0.8,0.8))
+        window_list_l = slide_window(test_image,y_start_stop=[450,None], xy_window=(256,256), xy_overlap=(0.8,0.8))
+        windows = window_list_s + window_list_m + window_list_l
+
+        hot_windows = search_windows(test_image, windows, svc, X_scaler, color_space=color_space,
+                                     spatial_size=spatial, hist_bins=hist_bins,
+                                     orient=orient, pix_per_cell=pix_per_cell, cell_per_block=cell_per_block,
+                                     hog_channel=hog_channel)
+
+        window_image = draw_boxes(test_image, hot_windows, color=(0,0,255))
+        plt.imshow(window_image)
         plt.show()
+
+    # Method 2 : search with sub sampling
+    # images = glob.glob('./test_images/*.jpg')
+    # ystart = 400
+    # ystop = 656
+    # scale = 1.0
+    # for image in images:
+    #     test_image = read_image(image)
+    #     out_img = find_cars(test_image, ystart, ystop, scale, svc, X_scaler, color_space,  orient, pix_per_cell, cell_per_block, spatial, hist_bins)
+    #     plt.imshow(out_img)
+    #     plt.show()
 
