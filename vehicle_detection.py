@@ -9,6 +9,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.svm import LinearSVC
 import pickle
 from scipy.ndimage.measurements import label
+from moviepy.editor import VideoFileClip
 
 def display_2_images(img1, img2, text_1='Origin Image', text_2='Destination Image'):
     f, (ax1, ax2) = plt.subplots(1, 2, figsize=(24, 9))
@@ -299,8 +300,6 @@ def search_windows(img, windows, clf, scaler, color_space='RGB',
 
 # Define a single function that can extract features using hog sub-sampling and make predictions
 def find_cars(img, ystart, ystop, scale, svc, X_scaler, color_space, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins):
-    draw_img = np.copy(img)
-    # img = img.astype(np.float32) / 255
 
     img_tosearch = img[ystart:ystop, :, :]
     # assume img_tosearch is in RGB format
@@ -501,6 +500,30 @@ def experiment_hog(colors, orients, pix_per_cells, cell_per_blocks, hog_channels
     # Predict for {'histbin': 32, 'color_space': 'HLS', 'spatial': 16}
     # Test Accuracy of SVC =  0.9975
 
+
+def save_state(svc, X_scaler, pred, color_space, hist_bins, spatial, orient,
+    pix_per_cell, cell_per_block, hog_channel, save_file):
+    """
+    Utility method to save state with pickle
+    """
+
+    data = {
+        'svc': svc,
+        'X_scaler': X_scaler,
+        'pred': pred,
+        'color_space': color_space,
+        'hist_bins': hist_bins,
+        'spatial': spatial,
+        'orient': orient,
+        'pix_per_cell': pix_per_cell,
+        'cell_per_block': cell_per_block,
+        'hog_channel': hog_channel
+    }
+
+    with open(save_file, 'wb') as f:
+        pickle.dump(data, f)
+        f.close()
+
 def train_classifier_pipeline(save_file='training.p'):
     start = timer()
     car_images = glob.glob('./data/car/*/*.png')
@@ -528,38 +551,62 @@ def train_classifier_pipeline(save_file='training.p'):
     print('Duration', round(end - start, 2), 'secs')
 
 
-def detection_pipeline(image_detection, params, svc, X_scaler, color_space,  orient, pix_per_cell, cell_per_block, spatial, hist_bins):
-
+def detection_pipeline(image_detection, params, svc, X_scaler, color_space,
+    orient, pix_per_cell, cell_per_block, spatial, hist_bins, visualize=False):
+    # Get list of boxes being identified
     bbox_list = []
-
     for param in params:
         ystart = param[0]
         ystop = param[1]
         scale = param[2]
-        bbox = find_cars(image_detection, ystart, ystop, scale, svc, X_scaler, color_space,  orient, pix_per_cell, cell_per_block, spatial, hist_bins)
+        bbox = find_cars(image_detection, ystart, ystop, scale, svc, X_scaler,
+                         color_space, orient, pix_per_cell, cell_per_block,
+                         spatial, hist_bins)
         bbox_list += bbox
 
-    return bbox_list
+    # search and detect with heapmap
+    heatmap_threshold = 2  # how many boxes enough to keep it
+    heatmap = np.zeros_like(image_detection[:, :, 0]).astype((np.float))
+    heatmap = add_heat(heatmap, bbox_list)
+    heatmap = apply_threshold(heatmap, heatmap_threshold)
+    heatmap = np.clip(heatmap, 0, 255)
+    labels = label(heatmap)
+
+    draw_img = draw_labeled_bboxes(np.copy(image_detection), labels)
+
+    if visualize:
+        fig = plt.figure()
+        plt.subplot(121)
+        plt.imshow(draw_img)
+        plt.title('Car Positions')
+        plt.subplot(122)
+        plt.imshow(heatmap, cmap='hot')
+        plt.title('Heat Map')
+        fig.tight_layout()
+        plt.show()
+
+    return draw_img
 
 
+def process_pipeline(color_image):
+    test_image = read_image(color_image)
+    # (400, 528, 0.8), (400, 592, 1.5), (450, 656, 1.7) (Large one hasn't tested)
+    scale_list = [(400, 528, 0.8), (400, 592, 1.5), (450, 656, 1.7)]
+    image_with_box = detection_pipeline(test_image, scale_list, svc, X_scaler,
+                                        color_space, orient, pix_per_cell,
+                                        cell_per_block, spatial, hist_bins,
+                                        visualize=False)
+    return image_with_box
 
-def save_state(svc, X_scaler, pred, color_space, hist_bins, spatial, orient, pix_per_cell, cell_per_block, hog_channel, save_file):
-    data = {
-        'svc': svc,
-        'X_scaler': X_scaler,
-        'pred': pred,
-        'color_space': color_space,
-        'hist_bins': hist_bins,
-        'spatial': spatial,
-        'orient': orient,
-        'pix_per_cell': pix_per_cell,
-        'cell_per_block': cell_per_block,
-        'hog_channel': hog_channel
-    }
 
-    with open(save_file, 'wb') as f:
-        pickle.dump(data, f)
-        f.close()
+def generate_video():
+    input_video = 'test_video.mp4'
+    output_video = 'vehicle_detection.mp4'
+    clip = VideoFileClip(input_video)
+    processed_clip = clip.fl_image(process_pipeline)
+
+    # NOTE: this function expects color images!!
+    processed_clip.write_videofile(output_video, audio=False)
 
 # Main function
 if __name__ == '__main__':
@@ -576,7 +623,7 @@ if __name__ == '__main__':
     spatial = saved_pickle['spatial']
     hist_bins = saved_pickle['hist_bins']
     orient = saved_pickle['orient']
-    pix_per_cell= saved_pickle['pix_per_cell']
+    pix_per_cell = saved_pickle['pix_per_cell']
     cell_per_block = saved_pickle['cell_per_block']
     hog_channel = saved_pickle['hog_channel']
 
@@ -602,37 +649,7 @@ if __name__ == '__main__':
     # Method 2 : search with sub sampling
     images = glob.glob('./test_images/*.jpg')
     for image in images:
-        test_image = read_image(image)
-        heatmap = np.zeros_like(test_image[:,:,0]).astype((np.float))
-        # (400, 528, 0.8), (400, 592, 1.5), (450, 656, 1.7) (Large one hasn't tested)
-        scale_list = [(400, 528, 0.8), (400, 592, 1.5)]
-        bbox_list = detection_pipeline(test_image, scale_list, svc, X_scaler,
-                                       color_space, orient, pix_per_cell,
-                                       cell_per_block, spatial, hist_bins)
-
-        heatmap = add_heat(heatmap, bbox_list)
-
-        heatmap = apply_threshold(heatmap, 2)
-
-        heatmap = np.clip(heatmap, 0, 255)
-
-        labels = label(heatmap)
-
-        draw_img = draw_labeled_bboxes(np.copy(test_image), labels)
-
-        fig = plt.figure()
-        plt.subplot(121)
-        plt.imshow(draw_img)
-        plt.title('Car Positions')
-        plt.subplot(122)
-        plt.imshow(heatmap, cmap='hot')
-        plt.title('Heat Map')
-        fig.tight_layout()
+        final_img = process_pipeline(image)
+        plt.imshow(final_img)
         plt.show()
-
-        # for box in bbox_list:
-        #     cv2.rectangle(test_image, box[0], box[1], (0, 0, 255), 6)
-        #
-        # plt.imshow(test_image)
-        # plt.show()
 
