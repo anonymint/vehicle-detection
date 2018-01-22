@@ -604,14 +604,15 @@ if __name__ == '__main__':
     for image in images:
         test_image = read_image(image)
         heatmap = np.zeros_like(test_image[:,:,0]).astype((np.float))
-        scale_list = [(400, 528, 0.8), (400, 592, 1.0), (450, 656, 1.2)]
+        # (400, 528, 0.8), (400, 592, 1.5), (450, 656, 1.7) (Large one hasn't tested)
+        scale_list = [(400, 528, 0.8), (400, 592, 1.5)]
         bbox_list = detection_pipeline(test_image, scale_list, svc, X_scaler,
                                        color_space, orient, pix_per_cell,
                                        cell_per_block, spatial, hist_bins)
 
         heatmap = add_heat(heatmap, bbox_list)
 
-        heatmap = apply_threshold(heatmap, 1)
+        heatmap = apply_threshold(heatmap, 2)
 
         heatmap = np.clip(heatmap, 0, 255)
 
