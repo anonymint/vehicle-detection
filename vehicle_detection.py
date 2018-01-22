@@ -8,6 +8,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from sklearn.svm import LinearSVC
 import pickle
+from scipy.ndimage.measurements import label
 
 def display_2_images(img1, img2, text_1='Origin Image', text_2='Destination Image'):
     f, (ax1, ax2) = plt.subplots(1, 2, figsize=(24, 9))
@@ -330,6 +331,8 @@ def find_cars(img, ystart, ystop, scale, svc, X_scaler, color_space, orient, pix
     hog2 = get_hog_features(ch2, orient, pix_per_cell, cell_per_block, feature_vec=False)
     hog3 = get_hog_features(ch3, orient, pix_per_cell, cell_per_block, feature_vec=False)
 
+
+    bbox_list = []
     for xb in range(nxsteps):
         for yb in range(nysteps):
             ypos = yb * cells_per_step
@@ -360,10 +363,46 @@ def find_cars(img, ystart, ystop, scale, svc, X_scaler, color_space, orient, pix
                 xbox_left = np.int(xleft * scale)
                 ytop_draw = np.int(ytop * scale)
                 win_draw = np.int(window * scale)
-                cv2.rectangle(draw_img, (xbox_left, ytop_draw + ystart),
-                              (xbox_left + win_draw, ytop_draw + win_draw + ystart), (0, 0, 255), 6)
+                bbox_list.append(((xbox_left, ytop_draw + ystart), (xbox_left + win_draw, ytop_draw + win_draw + ystart)))
+                # cv2.rectangle(draw_img, (xbox_left, ytop_draw + ystart),
+                #               (xbox_left + win_draw, ytop_draw + win_draw + ystart), (0, 0, 255), 6)
 
-    return draw_img
+    # print(bbox_list)
+
+    return bbox_list
+
+def add_heat(heatmap, bbox_list):
+    # Iterate through list of bboxes
+    for box in bbox_list:
+        # Add += 1 for all pixels inside each bbox
+        # Assuming each "box" takes the form ((x1, y1), (x2, y2))
+        heatmap[box[0][1]:box[1][1], box[0][0]:box[1][0]] += 1
+
+    # Return updated heatmap
+    return heatmap# Iterate through list of bboxes
+
+
+def apply_threshold(heatmap, threshold):
+    # Zero out pixels below the threshold
+    heatmap[heatmap <= threshold] = 0
+    # Return thresholded map
+    return heatmap
+
+
+def draw_labeled_bboxes(img, labels):
+    # Iterate through all detected cars
+    for car_number in range(1, labels[1]+1):
+        # Find pixels with each car_number label value
+        nonzero = (labels[0] == car_number).nonzero()
+        # Identify x and y values of those pixels
+        nonzeroy = np.array(nonzero[0])
+        nonzerox = np.array(nonzero[1])
+        # Define a bounding box based on min/max x and y
+        bbox = ((np.min(nonzerox), np.min(nonzeroy)), (np.max(nonzerox), np.max(nonzeroy)))
+        # Draw the box on the image
+        cv2.rectangle(img, bbox[0], bbox[1], (0,0,255), 6)
+    # Return the image
+    return img
 
 def experiment_color(colors, spatials, histbins):
     combine = []
@@ -489,6 +528,21 @@ def train_classifier_pipeline(save_file='training.p'):
     print('Duration', round(end - start, 2), 'secs')
 
 
+def detection_pipeline(image_detection, params, svc, X_scaler, color_space,  orient, pix_per_cell, cell_per_block, spatial, hist_bins):
+
+    bbox_list = []
+
+    for param in params:
+        ystart = param[0]
+        ystop = param[1]
+        scale = param[2]
+        bbox = find_cars(image_detection, ystart, ystop, scale, svc, X_scaler, color_space,  orient, pix_per_cell, cell_per_block, spatial, hist_bins)
+        bbox_list += bbox
+
+    return bbox_list
+
+
+
 def save_state(svc, X_scaler, pred, color_space, hist_bins, spatial, orient, pix_per_cell, cell_per_block, hog_channel, save_file):
     data = {
         'svc': svc,
@@ -528,31 +582,56 @@ if __name__ == '__main__':
 
 
     # Method 1 : search everything
+    # images = glob.glob('./test_images/*.jpg')
+    # for image in images:
+    #     test_image = read_image(image)
+    #     window_list_s = slide_window(test_image,y_start_stop=[400,450], xy_window=(32,32), xy_overlap=(0.8,0.8))
+    #     window_list_m = slide_window(test_image,y_start_stop=[400,600], xy_window=(128,128), xy_overlap=(0.8,0.8))
+    #     window_list_l = slide_window(test_image,y_start_stop=[450,None], xy_window=(256,256), xy_overlap=(0.8,0.8))
+    #     windows = window_list_s + window_list_m + window_list_l
+    #
+    #     hot_windows = search_windows(test_image, windows, svc, X_scaler, color_space=color_space,
+    #                                  spatial_size=spatial, hist_bins=hist_bins,
+    #                                  orient=orient, pix_per_cell=pix_per_cell, cell_per_block=cell_per_block,
+    #                                  hog_channel=hog_channel)
+    #
+    #     window_image = draw_boxes(test_image, hot_windows, color=(0,0,255))
+    #     plt.imshow(window_image)
+    #     plt.show()
+
+    # Method 2 : search with sub sampling
     images = glob.glob('./test_images/*.jpg')
     for image in images:
         test_image = read_image(image)
-        window_list_s = slide_window(test_image,y_start_stop=[400,450], xy_window=(32,32), xy_overlap=(0.8,0.8))
-        window_list_m = slide_window(test_image,y_start_stop=[400,600], xy_window=(128,128), xy_overlap=(0.8,0.8))
-        window_list_l = slide_window(test_image,y_start_stop=[450,None], xy_window=(256,256), xy_overlap=(0.8,0.8))
-        windows = window_list_s + window_list_m + window_list_l
+        heatmap = np.zeros_like(test_image[:,:,0]).astype((np.float))
+        scale_list = [(400, 528, 0.8), (400, 592, 1.0), (450, 656, 1.2)]
+        bbox_list = detection_pipeline(test_image, scale_list, svc, X_scaler,
+                                       color_space, orient, pix_per_cell,
+                                       cell_per_block, spatial, hist_bins)
 
-        hot_windows = search_windows(test_image, windows, svc, X_scaler, color_space=color_space,
-                                     spatial_size=spatial, hist_bins=hist_bins,
-                                     orient=orient, pix_per_cell=pix_per_cell, cell_per_block=cell_per_block,
-                                     hog_channel=hog_channel)
+        heatmap = add_heat(heatmap, bbox_list)
 
-        window_image = draw_boxes(test_image, hot_windows, color=(0,0,255))
-        plt.imshow(window_image)
+        heatmap = apply_threshold(heatmap, 1)
+
+        heatmap = np.clip(heatmap, 0, 255)
+
+        labels = label(heatmap)
+
+        draw_img = draw_labeled_bboxes(np.copy(test_image), labels)
+
+        fig = plt.figure()
+        plt.subplot(121)
+        plt.imshow(draw_img)
+        plt.title('Car Positions')
+        plt.subplot(122)
+        plt.imshow(heatmap, cmap='hot')
+        plt.title('Heat Map')
+        fig.tight_layout()
         plt.show()
 
-    # Method 2 : search with sub sampling
-    # images = glob.glob('./test_images/*.jpg')
-    # ystart = 400
-    # ystop = 656
-    # scale = 1.0
-    # for image in images:
-    #     test_image = read_image(image)
-    #     out_img = find_cars(test_image, ystart, ystop, scale, svc, X_scaler, color_space,  orient, pix_per_cell, cell_per_block, spatial, hist_bins)
-    #     plt.imshow(out_img)
-    #     plt.show()
+        # for box in bbox_list:
+        #     cv2.rectangle(test_image, box[0], box[1], (0, 0, 255), 6)
+        #
+        # plt.imshow(test_image)
+        # plt.show()
 
