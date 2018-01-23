@@ -10,6 +10,8 @@ from sklearn.svm import LinearSVC
 import pickle
 from scipy.ndimage.measurements import label
 from moviepy.editor import VideoFileClip
+from tracking import Tracking
+import random
 
 def display_2_images(img1, img2, text_1='Origin Image', text_2='Destination Image'):
     f, (ax1, ax2) = plt.subplots(1, 2, figsize=(24, 9))
@@ -403,7 +405,7 @@ def draw_labeled_bboxes(img, labels):
     # Return the image
     return img
 
-def experiment_color(colors, spatials, histbins):
+def experiment_color(car_images, noncar_images, colors, spatials, histbins):
     combine = []
     for c in colors:
         for s in spatials:
@@ -449,7 +451,7 @@ def experiment_color(colors, spatials, histbins):
 
     print('best combination is',best, best_combination)
 
-def experiment_hog(colors, orients, pix_per_cells, cell_per_blocks, hog_channels):
+def experiment_hog(car_images, noncar_images, colors, orients, pix_per_cells, cell_per_blocks, hog_channels):
     combine = []
     for color in colors:
         for o in orients:
@@ -608,21 +610,62 @@ def detection_pipeline(image_detection, params, svc, X_scaler, color_space,
 
 
 def process_pipeline(color_image):
-    test_image = read_image(color_image)
     # (400, 528, 0.8), (400, 592, 1.5), (450, 656, 1.7) (Large one hasn't tested)
     scale_list = [(400, 528, 0.8), (400, 592, 1.5), (450, 656, 1.7)]
-    image_with_box = detection_pipeline(test_image, scale_list, svc, X_scaler,
+    image_with_box = detection_pipeline(color_image, scale_list, svc, X_scaler,
                                         color_space, orient, pix_per_cell,
                                         cell_per_block, spatial, hist_bins,
                                         visualize=False)
     return image_with_box
 
 
+def process_video_pipeline(image_detection):
+    scale_list = [(400, 528, 0.8), (400, 592, 1.5), (450, 656, 1.7)]
+
+    bbox_list = []
+    for param in scale_list:
+        ystart = param[0]
+        ystop = param[1]
+        scale = param[2]
+        bbox = find_cars(image_detection, ystart, ystop, scale, svc, X_scaler,
+                         color_space, orient, pix_per_cell, cell_per_block,
+                         spatial, hist_bins)
+        bbox_list += bbox
+
+    # search and detect with heapmap
+    heatmap_threshold = 2  # how many boxes enough to keep it
+    heatmap = np.zeros_like(image_detection[:, :, 0]).astype((np.float))
+    heatmap = add_heat(heatmap, bbox_list)
+    heatmap = apply_threshold(heatmap, heatmap_threshold)
+    heatmap = np.clip(heatmap, 0, 255)
+    tracking.heatmap_list.append(heatmap)
+    tracking.heatmap_list = tracking.heatmap_list[-tracking.number_frames_kept:]
+    # combine all heap_list
+    combined_heatmap = np.zeros_like(image_detection[:, :, 0]).astype(
+        (np.float))
+    for h in tracking.heatmap_list:
+        combined_heatmap = combined_heatmap + h
+
+    combined_heatmap = apply_threshold(combined_heatmap,
+                                       heatmap_threshold * tracking.number_frames_kept // 2)
+
+    labels = label(combined_heatmap)
+    tracking.number_of_dections = labels[1]
+    # print("This frame detect", tracking.number_of_dections,
+    #       len(tracking.heatmap_list))
+    draw_img = draw_labeled_bboxes(np.copy(image_detection), labels)
+    return draw_img
+
+def save_image(img):
+    rand = str(random.random())[-5:]
+    mpimg.imsave('./saved_video_images/' + rand + '.jpg', img)
+    return img
+
 def generate_video():
-    input_video = 'test_video.mp4'
+    input_video = 'project_video.mp4'
     output_video = 'vehicle_detection.mp4'
     clip = VideoFileClip(input_video)
-    processed_clip = clip.fl_image(process_pipeline)
+    processed_clip = clip.fl_image(process_video_pipeline)
 
     # NOTE: this function expects color images!!
     processed_clip.write_videofile(output_video, audio=False)
@@ -647,9 +690,11 @@ if __name__ == '__main__':
     hog_channel = saved_pickle['hog_channel']
 
     # Test images
-    images = glob.glob('./test_images/*.jpg')
-    for image in images:
-        final_img = process_pipeline(image)
-        plt.imshow(final_img)
-        plt.show()
+    # images = glob.glob('./test_images/*.jpg')
+    # for image in images:
+    #     final_img = process_pipeline(image)
+    #     plt.imshow(final_img)
+    #     plt.show()
 
+    tracking = Tracking()
+    generate_video()
