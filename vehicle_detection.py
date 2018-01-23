@@ -13,7 +13,9 @@ from moviepy.editor import VideoFileClip
 from tracking import Tracking
 import random
 
-def display_2_images(img1, img2, text_1='Origin Image', text_2='Destination Image'):
+
+def display_2_images(img1, img2, text_1='Origin Image',
+    text_2='Destination Image'):
     f, (ax1, ax2) = plt.subplots(1, 2, figsize=(24, 9))
     f.tight_layout()
     ax1.imshow(img1)
@@ -34,6 +36,7 @@ def display_color_gray(color, gray):
     plt.subplots_adjust(left=0., right=1, top=0.9, bottom=0.)
     plt.interactive(False)
 
+
 # always read image as uint8 so don't have to worry png(0-1) or jpeg
 def read_image(image_path):
     img = mpimg.imread(image_path)
@@ -41,13 +44,16 @@ def read_image(image_path):
         img = (img * 255).astype(np.uint8)
     return img
 
+
 # Define a function to return HOG features and visualization
-def get_hog_features(img, orient, pix_per_cell, cell_per_block, vis=False, feature_vec=True):
+def get_hog_features(img, orient, pix_per_cell, cell_per_block, vis=False,
+    feature_vec=True):
     # Call with two outputs if vis==True
     if vis:
         features, hog_image = hog(img, orientations=orient,
                                   pixels_per_cell=(pix_per_cell, pix_per_cell),
-                                  cells_per_block=(cell_per_block, cell_per_block),
+                                  cells_per_block=(
+                                  cell_per_block, cell_per_block),
                                   transform_sqrt=True,
                                   visualise=vis, feature_vector=feature_vec)
         return features, hog_image
@@ -105,9 +111,9 @@ def convert_color(image, color_space='RGB'):
 # Define a function to extract features from a list of images
 # Have this function call bin_spatial() and color_hist()
 def extract_features(imgs, color_space='RGB', spatial_size=(32, 32),
-                     hist_bins=32, orient=9,
-                     pix_per_cell=8, cell_per_block=2, hog_channel=0,
-                     spatial_feat=True, hist_feat=True, hog_feat=True):
+    hist_bins=32, orient=9,
+    pix_per_cell=8, cell_per_block=2, hog_channel=0,
+    spatial_feat=True, hist_feat=True, hog_feat=True):
     # Create a list to append feature vectors to
     features = []
     # Iterate through the list of images
@@ -130,13 +136,15 @@ def extract_features(imgs, color_space='RGB', spatial_size=(32, 32),
             if hog_channel == 'ALL':
                 hog_features = []
                 for channel in range(feature_image.shape[2]):
-                    hog_features.append(get_hog_features(feature_image[:, :, channel],
-                                                         orient, pix_per_cell, cell_per_block,
-                                                         vis=False, feature_vec=True))
+                    hog_features.append(
+                        get_hog_features(feature_image[:, :, channel],
+                                         orient, pix_per_cell, cell_per_block,
+                                         vis=False, feature_vec=True))
                 hog_features = np.ravel(hog_features)
             else:
-                hog_features = get_hog_features(feature_image[:, :, hog_channel], orient,
-                                                pix_per_cell, cell_per_block, vis=False, feature_vec=True)
+                hog_features = get_hog_features(
+                    feature_image[:, :, hog_channel], orient,
+                    pix_per_cell, cell_per_block, vis=False, feature_vec=True)
             # Append the new feature vector to the features list
             file_features.append(hog_features)
         features.append(np.concatenate(file_features))
@@ -159,7 +167,9 @@ def train_classifier(car_features, noncar_features, visualize=False):
 
     # good idea to split data into training and validation and random
     rand_state = np.random.randint(0, 100)
-    X_train, X_test, y_train, y_test = train_test_split(scaled_X, y, test_size=0.2, random_state=rand_state)
+    X_train, X_test, y_train, y_test = train_test_split(scaled_X, y,
+                                                        test_size=0.2,
+                                                        random_state=rand_state)
 
     # Time to train it
     svc = LinearSVC()
@@ -180,7 +190,7 @@ def train_classifier(car_features, noncar_features, visualize=False):
 # window size (x and y dimensions),
 # and overlap fraction (for both x and y)
 def slide_window(img, x_start_stop=[None, None], y_start_stop=[None, None],
-                 xy_window=(64, 64), xy_overlap=(0.5, 0.5)):
+    xy_window=(64, 64), xy_overlap=(0.5, 0.5)):
     # If x and/or y start/stop positions not defined, set to image size
     if x_start_stop[0] is None:
         x_start_stop[0] = 0
@@ -241,18 +251,23 @@ def single_img_features(img, color_space='RGB', spatial_size=(32, 32),
                         spatial_feat=True, hist_feat=True, hog_feat=True):
     #1) Define an empty list to receive features
     img_features = []
+
     #2) Apply color conversion if other than 'RGB'
     feature_image = convert_color(img, color_space)
+
     #3) Compute spatial features if flag is set
     if spatial_feat == True:
         spatial_features = bin_spatial(feature_image, size=spatial_size)
         #4) Append features to list
         img_features.append(spatial_features)
+
     #5) Compute histogram features if flag is set
     if hist_feat == True:
         hist_features = color_hist(feature_image, nbins=hist_bins)
+
         #6) Append features to list
         img_features.append(hist_features)
+
     #7) Compute HOG features if flag is set
     if hog_feat == True:
         if hog_channel == 'ALL':
@@ -372,6 +387,7 @@ def find_cars(img, ystart, ystop, scale, svc, X_scaler, color_space, orient, pix
 
     return bbox_list
 
+# Add windows to heatmap are
 def add_heat(heatmap, bbox_list):
     # Iterate through list of bboxes
     for box in bbox_list:
@@ -383,6 +399,7 @@ def add_heat(heatmap, bbox_list):
     return heatmap# Iterate through list of bboxes
 
 
+# Apply threshold to zero out heatmap
 def apply_threshold(heatmap, threshold):
     # Zero out pixels below the threshold
     heatmap[heatmap <= threshold] = 0
@@ -390,6 +407,7 @@ def apply_threshold(heatmap, threshold):
     return heatmap
 
 
+# Given labels, draw a box on image
 def draw_labeled_bboxes(img, labels):
     # Iterate through all detected cars
     for car_number in range(1, labels[1]+1):
@@ -405,6 +423,8 @@ def draw_labeled_bboxes(img, labels):
     # Return the image
     return img
 
+
+# Experiment class to find the best Color parameters
 def experiment_color(car_images, noncar_images, colors, spatials, histbins):
     combine = []
     for c in colors:
@@ -415,16 +435,6 @@ def experiment_color(car_images, noncar_images, colors, spatials, histbins):
                 d['spatial'] = s
                 d['histbin'] = h
                 combine.append(d)
-
-    print(len(combine))
-
-    # color_space = 'LUV' # Can be RGB, HSV, LUV, HLS, YUV, YCrCb
-    # spatial = 16
-    # histbin = 32
-    # orient = 9
-    # pix_per_cell = 4
-    # cell_per_block = 2
-    # hog_channel = 1
 
     best = 0
     best_combination = []
@@ -451,6 +461,7 @@ def experiment_color(car_images, noncar_images, colors, spatials, histbins):
 
     print('best combination is',best, best_combination)
 
+# Experiment class to find the best HOG parameters
 def experiment_hog(car_images, noncar_images, colors, orients, pix_per_cells, cell_per_blocks, hog_channels):
     combine = []
     for color in colors:
@@ -465,14 +476,6 @@ def experiment_hog(car_images, noncar_images, colors, orients, pix_per_cells, ce
                         d['cell_per_block'] = c
                         d['hog_channel'] = h
                         combine.append(d)
-
-    print(len(combine))
-
-    # color_space = 'LUV' # Can be RGB, HSV, LUV, HLS, YUV, YCrCb
-    # orient = 9
-    # pix_per_cell = 4
-    # cell_per_block = 2
-    # hog_channel = 1
 
     best = 0
     best_combination = []
@@ -526,6 +529,30 @@ def save_state(svc, X_scaler, pred, color_space, hist_bins, spatial, orient,
         pickle.dump(data, f)
         f.close()
 
+
+def load_state(saved_file):
+    """
+    Utility method to load saved data by pickle
+
+    :param saved_file:
+    :type saved_file: str
+    :return: list of params
+    :rtype: tuple
+    """
+
+    saved_pickle = pickle.load(open(saved_file, 'rb'))
+    svc = saved_pickle['svc']
+    X_scaler = saved_pickle['X_scaler']
+    color_space = saved_pickle['color_space']
+    spatial = saved_pickle['spatial']
+    hist_bins = saved_pickle['hist_bins']
+    orient = saved_pickle['orient']
+    pix_per_cell = saved_pickle['pix_per_cell']
+    cell_per_block = saved_pickle['cell_per_block']
+    hog_channel = saved_pickle['hog_channel']
+    return svc, X_scaler, color_space, spatial, hist_bins, orient, pix_per_cell, cell_per_block, hog_channel
+
+# Pipeline for training classifier only
 def train_classifier_pipeline(save_file='training.p'):
     start = timer()
     car_images = glob.glob('./data/car/*/*.png')
@@ -553,26 +580,10 @@ def train_classifier_pipeline(save_file='training.p'):
     print('Duration', round(end - start, 2), 'secs')
 
 
+# pipeline for only detection
 def detection_pipeline(image_detection, params, svc, X_scaler, color_space,
-    orient, pix_per_cell, cell_per_block, spatial, hist_bins, visualize=False):
-
-    # Method 1 : search everything this is very slow and inefficient
-    # images = glob.glob('./test_images/*.jpg')
-    # for image in images:
-    #     test_image = read_image(image)
-    #     window_list_s = slide_window(test_image,y_start_stop=[400,450], xy_window=(32,32), xy_overlap=(0.8,0.8))
-    #     window_list_m = slide_window(test_image,y_start_stop=[400,600], xy_window=(128,128), xy_overlap=(0.8,0.8))
-    #     window_list_l = slide_window(test_image,y_start_stop=[450,None], xy_window=(256,256), xy_overlap=(0.8,0.8))
-    #     windows = window_list_s + window_list_m + window_list_l
-    #
-    #     hot_windows = search_windows(test_image, windows, svc, X_scaler, color_space=color_space,
-    #                                  spatial_size=spatial, hist_bins=hist_bins,
-    #                                  orient=orient, pix_per_cell=pix_per_cell, cell_per_block=cell_per_block,
-    #                                  hog_channel=hog_channel)
-    #
-    #     window_image = draw_boxes(test_image, hot_windows, color=(0,0,255))
-    #     plt.imshow(window_image)
-    #     plt.show()
+    orient, pix_per_cell, cell_per_block, spatial, hist_bins,
+    heatmap_threshold=1, visualize=False):
 
     # Method 2: Get list of boxes being identified by HOG and sub-sampling
     bbox_list = []
@@ -586,7 +597,6 @@ def detection_pipeline(image_detection, params, svc, X_scaler, color_space,
         bbox_list += bbox
 
     # search and detect with heapmap
-    heatmap_threshold = 2  # how many boxes enough to keep it
     heatmap = np.zeros_like(image_detection[:, :, 0]).astype((np.float))
     heatmap = add_heat(heatmap, bbox_list)
     heatmap = apply_threshold(heatmap, heatmap_threshold)
@@ -608,17 +618,19 @@ def detection_pipeline(image_detection, params, svc, X_scaler, color_space,
 
     return draw_img
 
-
+# Pipeline for single image
 def process_pipeline(color_image):
     # (400, 528, 0.8), (400, 592, 1.5), (450, 656, 1.7) (Large one hasn't tested)
     scale_list = [(400, 528, 0.8), (400, 592, 1.5), (450, 656, 1.7)]
     image_with_box = detection_pipeline(color_image, scale_list, svc, X_scaler,
                                         color_space, orient, pix_per_cell,
                                         cell_per_block, spatial, hist_bins,
+                                        heatmap_threshold=3,
                                         visualize=False)
     return image_with_box
 
 
+# Pipeline for Video with tracking to smooth it
 def process_video_pipeline(image_detection):
     scale_list = [(400, 528, 0.8), (400, 592, 1.5), (450, 656, 1.7)]
 
@@ -656,13 +668,15 @@ def process_video_pipeline(image_detection):
     draw_img = draw_labeled_bboxes(np.copy(image_detection), labels)
     return draw_img
 
+# Save video for further investigation
 def save_image(img):
     rand = str(random.random())[-5:]
     mpimg.imsave('./saved_video_images/' + rand + '.jpg', img)
     return img
 
+# Generate video process
 def generate_video():
-    input_video = 'project_video.mp4'
+    input_video = 'test_video.mp4'
     output_video = 'vehicle_detection.mp4'
     clip = VideoFileClip(input_video)
     processed_clip = clip.fl_image(process_video_pipeline)
@@ -675,26 +689,14 @@ if __name__ == '__main__':
     from timeit import default_timer as timer
 
     # Good idea to train once and save for later use
-    # train_classifier_pipeline('training.p')
+    # Do comment this line if you want to re-train classifier
+    # train_classifier_pipeline('NAME_YOUR_CLASSIFIER.p')
 
-    # Load saved training
-    saved_pickle = pickle.load(open('training_ALL_YCrCb.p', 'rb'))
-    svc = saved_pickle['svc']
-    X_scaler = saved_pickle['X_scaler']
-    color_space = saved_pickle['color_space']
-    spatial = saved_pickle['spatial']
-    hist_bins = saved_pickle['hist_bins']
-    orient = saved_pickle['orient']
-    pix_per_cell = saved_pickle['pix_per_cell']
-    cell_per_block = saved_pickle['cell_per_block']
-    hog_channel = saved_pickle['hog_channel']
+    (svc, X_scaler, color_space, spatial, hist_bins, orient, pix_per_cell,
+     cell_per_block, hog_channel) = load_state('training_ALL_YCrCb.p')
 
-    # Test images
-    # images = glob.glob('./test_images/*.jpg')
-    # for image in images:
-    #     final_img = process_pipeline(image)
-    #     plt.imshow(final_img)
-    #     plt.show()
-
+    # Tracking class to track value
     tracking = Tracking()
+
+    # Generate the video
     generate_video()
